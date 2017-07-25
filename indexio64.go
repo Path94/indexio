@@ -4,21 +4,13 @@ import (
 	"encoding/binary"
 
 	"github.com/Path94/turtleDB"
-	"github.com/missionMeteora/toolkit/errors"
 )
 
-const (
-	// ErrInvalidType is returned when an invalid type is encountered
-	ErrInvalidType = errors.Error("invalid type")
-	// ErrKeyUnset is returned when a key is queried and does not exist
-	ErrKeyUnset = errors.Error("key unset")
-)
-
-// New will return a new instance of indexio
-func New(path string) (ip *Indexio, err error) {
-	var i Indexio
+// New64 will return a new instance of 64-bit indexio
+func New64(path string) (ip *Indexio64, err error) {
+	var i Indexio64
 	// Initialize functions map for marshaling and unmarshaling
-	fm := turtleDB.NewFuncsMap(marshal, unmarshal)
+	fm := turtleDB.NewFuncsMap(marshal64, unmarshal64)
 	// Create new instance of turtleDB
 	if i.db, err = turtleDB.New("indexio", path, fm); err != nil {
 		return
@@ -32,20 +24,20 @@ func New(path string) (ip *Indexio, err error) {
 	return
 }
 
-// Indexio manages indexes
-type Indexio struct {
+// Indexio64 manages indexes
+type Indexio64 struct {
 	db *turtleDB.Turtle
 }
 
 // Next will return the next index for a given key
-func (i *Indexio) Next(key string) (idx uint32, err error) {
+func (i *Indexio64) Next(key string) (idx uint64, err error) {
 	err = i.db.Update(func(txn turtleDB.Txn) (err error) {
 		var bkt turtleDB.Bucket
 		if bkt, err = txn.Get("indexes"); err != nil {
 			return
 		}
 
-		if idx, err = getCurrent(bkt, key); err != nil {
+		if idx, err = getCurrent64(bkt, key); err != nil {
 			return
 		}
 
@@ -57,14 +49,14 @@ func (i *Indexio) Next(key string) (idx uint32, err error) {
 }
 
 // Current will return the current index for a given key
-func (i *Indexio) Current(key string) (idx uint32, err error) {
+func (i *Indexio64) Current(key string) (idx uint64, err error) {
 	err = i.db.Read(func(txn turtleDB.Txn) (err error) {
 		var bkt turtleDB.Bucket
 		if bkt, err = txn.Get("indexes"); err != nil {
 			return
 		}
 
-		idx, err = getCurrent(bkt, key)
+		idx, err = getCurrent64(bkt, key)
 		return
 	})
 
@@ -78,37 +70,32 @@ func (i *Indexio) Current(key string) (idx uint32, err error) {
 }
 
 // Close will close an instance of indexio
-func (i *Indexio) Close() error {
+func (i *Indexio64) Close() error {
 	return i.db.Close()
 }
 
-func marshal(val turtleDB.Value) (b []byte, err error) {
+func marshal64(val turtleDB.Value) (b []byte, err error) {
 	var (
-		idx uint32
+		idx uint64
 		ok  bool
 	)
 
-	if idx, ok = val.(uint32); !ok {
+	if idx, ok = val.(uint64); !ok {
 		return
 	}
 
 	b = make([]byte, 8)
-	binary.LittleEndian.PutUint32(b, idx)
+	binary.LittleEndian.PutUint64(b, idx)
 	return
 }
 
-func unmarshal(b []byte) (val turtleDB.Value, err error) {
-	idx := binary.LittleEndian.Uint32(b)
+func unmarshal64(b []byte) (val turtleDB.Value, err error) {
+	idx := binary.LittleEndian.Uint64(b)
 	val = idx
 	return
 }
 
-func initBucket(txn turtleDB.Txn) (err error) {
-	_, err = txn.Create("indexes")
-	return
-}
-
-func getCurrent(bkt turtleDB.Bucket, key string) (idx uint32, err error) {
+func getCurrent64(bkt turtleDB.Bucket, key string) (idx uint64, err error) {
 	var (
 		val turtleDB.Value
 		ok  bool
@@ -119,8 +106,8 @@ func getCurrent(bkt turtleDB.Bucket, key string) (idx uint32, err error) {
 		return
 	}
 
-	// The value exists, let's assert the value as a uint32 and set idx
-	if idx, ok = val.(uint32); !ok {
+	// The value exists, let's assert the value as a uint64 and set idx
+	if idx, ok = val.(uint64); !ok {
 		err = ErrInvalidType
 		return
 	}
